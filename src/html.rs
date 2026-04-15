@@ -25,9 +25,11 @@ impl HtmlParser {
         let name = self
             .parser
             .consume_while(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9'))?;
+
         if name.is_empty() {
             return Err(self.parser.err("Expected tag or attribute name"));
         }
+
         Ok(name)
     }
 
@@ -35,6 +37,7 @@ impl HtmlParser {
         if self.parser.starts_with("<") {
             return self.parse_element();
         }
+
         self.parse_text()
     }
 
@@ -60,7 +63,9 @@ impl HtmlParser {
     fn parse_attr(&mut self) -> ParserResult<(String, String)> {
         let name = self.parse_name()?;
         self.parser.expect("=")?;
+
         let value = self.parse_attr_value()?;
+
         Ok((name, value))
     }
 
