@@ -260,3 +260,172 @@ impl CssParser {
 fn valid_identifier_char(c: char) -> bool {
     matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_tag_selector() {
+        let stylesheet = parse("div { display: block; }".to_string()).unwrap();
+        assert_eq!(stylesheet.rules.len(), 1);
+
+        let rule = &stylesheet.rules[0];
+        match &rule.selectors[0] {
+            Selector::Simple(s) => assert_eq!(s.tag_name, Some("div".to_string())),
+        }
+    }
+
+    #[test]
+    fn parse_id_selector() {
+        let stylesheet = parse("#main { display: block; }".to_string()).unwrap();
+
+        let rule = &stylesheet.rules[0];
+        match &rule.selectors[0] {
+            Selector::Simple(s) => assert_eq!(s.id, Some("main".to_string())),
+        }
+    }
+
+    #[test]
+    fn parse_class_selector() {
+        let stylesheet = parse(".active { display: block; }".to_string()).unwrap();
+
+        let rule = &stylesheet.rules[0];
+        match &rule.selectors[0] {
+            Selector::Simple(s) => assert_eq!(s.class, vec!["active".to_string()]),
+        }
+    }
+
+    #[test]
+    fn parse_universal_selector() {
+        let stylesheet = parse("* { margin: 0px; }".to_string()).unwrap();
+
+        let rule = &stylesheet.rules[0];
+        match &rule.selectors[0] {
+            Selector::Simple(s) => {
+                assert_eq!(s.tag_name, None);
+                assert_eq!(s.id, None);
+                assert!(s.class.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn parse_multiple_selectors() {
+        let stylesheet = parse("h1, h2 { color: #ff0000; }".to_string()).unwrap();
+
+        assert_eq!(stylesheet.rules[0].selectors.len(), 2);
+    }
+
+    #[test]
+    fn parse_declaration_keyword_value() {
+        let stylesheet = parse("div { display: block; }".to_string()).unwrap();
+        let decl = &stylesheet.rules[0].declarations[0];
+
+        assert_eq!(decl.name, "display");
+        assert_eq!(decl.value, Value::Keyword("block".to_string()));
+    }
+
+    #[test]
+    fn parse_declaration_length_value() {
+        let stylesheet = parse("div { width: 100px; }".to_string()).unwrap();
+        let decl = &stylesheet.rules[0].declarations[0];
+
+        assert_eq!(decl.name, "width");
+        assert_eq!(decl.value, Value::Length(100.0, Unit::Px));
+    }
+
+    #[test]
+    fn parse_declaration_color_value() {
+        let stylesheet = parse("div { color: #ff8800; }".to_string()).unwrap();
+        let decl = &stylesheet.rules[0].declarations[0];
+
+        assert_eq!(decl.name, "color");
+        assert_eq!(
+            decl.value,
+            Value::ColorValue(Color {
+                r: 255,
+                g: 136,
+                b: 0,
+                a: 255
+            })
+        );
+    }
+
+    #[test]
+    fn parse_multiple_declarations() {
+        let css = "div { width: 100px; height: 200px; }".to_string();
+        let stylesheet = parse(css).unwrap();
+
+        assert_eq!(stylesheet.rules[0].declarations.len(), 2);
+    }
+
+    #[test]
+    fn parse_multiple_rules() {
+        let css = "div { display: block; } p { color: #000000; }".to_string();
+        let stylesheet = parse(css).unwrap();
+
+        assert_eq!(stylesheet.rules.len(), 2);
+    }
+
+    #[test]
+    fn specificity_id_highest() {
+        let s = Selector::Simple(SimpleSelector {
+            tag_name: None,
+            id: Some("main".to_string()),
+            class: vec![],
+        });
+
+        assert_eq!(s.specificity(), (1, 0, 0));
+    }
+
+    #[test]
+    fn specificity_class_middle() {
+        let s = Selector::Simple(SimpleSelector {
+            tag_name: None,
+            id: None,
+            class: vec!["active".to_string(), "visible".to_string()],
+        });
+
+        assert_eq!(s.specificity(), (0, 2, 0));
+    }
+
+    #[test]
+    fn specificity_tag_lowest() {
+        let s = Selector::Simple(SimpleSelector {
+            tag_name: Some("div".to_string()),
+            id: None,
+            class: vec![],
+        });
+
+        assert_eq!(s.specificity(), (0, 0, 1));
+    }
+
+    #[test]
+    fn specificity_ordering() {
+        let id = (1, 0, 0);
+        let class = (0, 1, 0);
+        let tag = (0, 0, 1);
+
+        assert!(id > class);
+        assert!(class > tag);
+    }
+
+    #[test]
+    fn parse_float_value() {
+        let stylesheet = parse("div { opacity: 0.5px; }".to_string()).unwrap();
+        let decl = &stylesheet.rules[0].declarations[0];
+
+        assert_eq!(decl.value, Value::Length(0.5, Unit::Px));
+    }
+
+    #[test]
+    fn value_to_px_returns_float_for_length() {
+        assert_eq!(Value::Length(42.0, Unit::Px).to_px(), 42.0);
+    }
+
+    #[test]
+    fn value_to_px_returns_zero_for_non_length() {
+        assert_eq!(Value::Keyword("block".to_string()).to_px(), 0.0);
+    }
+}

@@ -125,3 +125,108 @@ impl HtmlParser {
         Ok(nodes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dom::NodeType;
+
+    #[test]
+    fn parse_single_text_node() {
+        let node = HtmlParser::parse("hello world".to_string()).unwrap();
+        assert!(matches!(node.node_type, NodeType::Text(ref s) if s == "hello world"));
+    }
+
+    #[test]
+    fn parse_simple_element() {
+        let node = HtmlParser::parse("<p></p>".to_string()).unwrap();
+        match &node.node_type {
+            NodeType::Element(data) => assert_eq!(data.tag_name, "p"),
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn parse_element_with_text_child() {
+        let node = HtmlParser::parse("<p>hello</p>".to_string()).unwrap();
+        match &node.node_type {
+            NodeType::Element(data) => {
+                assert_eq!(data.tag_name, "p");
+                assert_eq!(node.children.len(), 1);
+                assert!(matches!(&node.children[0].node_type, NodeType::Text(s) if s == "hello"));
+            }
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn parse_element_with_attributes() {
+        let node = HtmlParser::parse(r#"<div id="main" class="container"></div>"#.to_string()).unwrap();
+        match &node.node_type {
+            NodeType::Element(data) => {
+                assert_eq!(data.tag_name, "div");
+                assert_eq!(data.attrs.get("id").unwrap(), "main");
+                assert_eq!(data.attrs.get("class").unwrap(), "container");
+            }
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn parse_nested_elements() {
+        let html = "<div><p><span>hi</span></p></div>".to_string();
+        let node = HtmlParser::parse(html).unwrap();
+
+        match &node.node_type {
+            NodeType::Element(data) => assert_eq!(data.tag_name, "div"),
+            _ => panic!("expected div"),
+        }
+
+        let p = &node.children[0];
+        match &p.node_type {
+            NodeType::Element(data) => assert_eq!(data.tag_name, "p"),
+            _ => panic!("expected p"),
+        }
+
+        let span = &p.children[0];
+        match &span.node_type {
+            NodeType::Element(data) => assert_eq!(data.tag_name, "span"),
+            _ => panic!("expected span"),
+        }
+
+        assert!(matches!(&span.children[0].node_type, NodeType::Text(s) if s == "hi"));
+    }
+
+    #[test]
+    fn parse_sibling_elements() {
+        let html = "<div><p>one</p><p>two</p></div>".to_string();
+        let node = HtmlParser::parse(html).unwrap();
+        assert_eq!(node.children.len(), 2);
+    }
+
+    #[test]
+    fn parse_single_quoted_attributes() {
+        let node = HtmlParser::parse("<div id='main'></div>".to_string()).unwrap();
+        match &node.node_type {
+            NodeType::Element(data) => assert_eq!(data.attrs.get("id").unwrap(), "main"),
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn parse_wraps_multiple_roots_in_html_element() {
+        let node = HtmlParser::parse("<p>a</p><p>b</p>".to_string()).unwrap();
+        match &node.node_type {
+            NodeType::Element(data) => {
+                assert_eq!(data.tag_name, "html");
+                assert_eq!(node.children.len(), 2);
+            }
+            _ => panic!("expected html wrapper"),
+        }
+    }
+
+    #[test]
+    fn parse_unclosed_tag_returns_error() {
+        assert!(HtmlParser::parse("<div>".to_string()).is_err());
+    }
+}

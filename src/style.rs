@@ -85,3 +85,138 @@ fn match_simple_selector(elem: &ElementData, selector: &SimpleSelector) -> bool 
 
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::css::{self, SimpleSelector, Value};
+    use std::collections::HashMap;
+
+    fn make_element(tag: &str, id: Option<&str>, classes: Option<&str>) -> Node {
+        let mut attrs = HashMap::new();
+        if let Some(id) = id {
+            attrs.insert("id".to_string(), id.to_string());
+        }
+        if let Some(classes) = classes {
+            attrs.insert("class".to_string(), classes.to_string());
+        }
+
+        crate::dom::elem(tag.to_string(), attrs, vec![])
+    }
+
+    fn simple_selector(tag: Option<&str>, id: Option<&str>, classes: Vec<&str>) -> SimpleSelector {
+        SimpleSelector {
+            tag_name: tag.map(|s| s.to_string()),
+            id: id.map(|s| s.to_string()),
+            class: classes.into_iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn elem_data(node: &Node) -> &ElementData {
+        match &node.node_type {
+            NodeType::Element(data) => data,
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn match_tag_selector() {
+        let node = make_element("div", None, None);
+        let selector = simple_selector(Some("div"), None, vec![]);
+        assert!(match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn no_match_wrong_tag() {
+        let node = make_element("div", None, None);
+        let selector = simple_selector(Some("p"), None, vec![]);
+        assert!(!match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn match_id_selector() {
+        let node = make_element("div", Some("main"), None);
+        let selector = simple_selector(None, Some("main"), vec![]);
+        assert!(match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn no_match_wrong_id() {
+        let node = make_element("div", Some("main"), None);
+        let selector = simple_selector(None, Some("sidebar"), vec![]);
+        assert!(!match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn match_class_selector() {
+        let node = make_element("div", None, Some("active visible"));
+        let selector = simple_selector(None, None, vec!["active"]);
+        assert!(match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn no_match_missing_class() {
+        let node = make_element("div", None, Some("active"));
+        let selector = simple_selector(None, None, vec!["hidden"]);
+        assert!(!match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn universal_selector_matches_any_element() {
+        let node = make_element("div", None, None);
+        let selector = simple_selector(None, None, vec![]);
+        assert!(match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn match_compound_selector() {
+        let node = make_element("div", Some("main"), Some("active"));
+        let selector = simple_selector(Some("div"), Some("main"), vec!["active"]);
+        assert!(match_simple_selector(elem_data(&node), &selector));
+    }
+
+    #[test]
+    fn higher_specificity_wins() {
+        let css_source = r#"
+            div { color: #ff0000; }
+            #main { color: #00ff00; }
+        "#;
+        let stylesheet = css::parse(css_source.to_string()).unwrap();
+
+        let node = make_element("div", Some("main"), None);
+        let values = specified_values(elem_data(&node), &stylesheet);
+
+        assert_eq!(
+            values.get("color").unwrap(),
+            &Value::ColorValue(css::Color { r: 0, g: 255, b: 0, a: 255 })
+        );
+    }
+
+    #[test]
+    fn text_node_gets_no_styles() {
+        let stylesheet = css::parse("div { display: block; }".to_string()).unwrap();
+        let text_node = crate::dom::text("hello".to_string());
+        let styled = style_tree(&text_node, &stylesheet);
+
+        assert!(styled.specified_values.is_empty());
+    }
+
+    #[test]
+    fn style_tree_preserves_children() {
+        let html = "<div><p>hi</p><p>there</p></div>";
+        let dom = crate::html::HtmlParser::parse(html.to_string()).unwrap();
+        let stylesheet = css::parse("".to_string()).unwrap();
+        let styled = style_tree(&dom, &stylesheet);
+
+        assert_eq!(styled.children.len(), 2);
+    }
+
+    #[test]
+    fn unmatched_element_gets_empty_styles() {
+        let stylesheet = css::parse("p { display: block; }".to_string()).unwrap();
+        let node = make_element("div", None, None);
+        let values = specified_values(elem_data(&node), &stylesheet);
+
+        assert!(values.is_empty());
+    }
+}
