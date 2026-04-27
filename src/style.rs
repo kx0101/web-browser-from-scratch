@@ -3,16 +3,35 @@ use std::collections::HashMap;
 use crate::{
     css::{Rule, Selector, SimpleSelector, Specificity, Stylesheet, Value},
     dom::{ElementData, Node, NodeType},
+    layout::Display,
 };
 
 type PropertyMap = HashMap<String, Value>;
 
 type MatchedRule<'a> = (Specificity, &'a Rule);
 
-struct StyledNode<'a> {
-    node: &'a Node,
+pub struct StyledNode<'a> {
+    pub children: Vec<StyledNode<'a>>,
+    pub node: &'a Node,
+
     specified_values: PropertyMap,
-    children: Vec<StyledNode<'a>>,
+}
+
+impl<'a> StyledNode<'a> {
+    fn value(&self, name: &str) -> Option<Value> {
+        self.specified_values.get(name).cloned()
+    }
+
+    pub fn display(&self) -> Display {
+        match self.value("display") {
+            Some(Value::Keyword(s)) => match &*s {
+                "block" => Display::Block,
+                "none" => Display::None,
+                _ => Display::Inline,
+            },
+            _ => Display::Inline,
+        }
+    }
 }
 
 pub fn style_tree<'a>(root: &'a Node, stylesheet: &'a Stylesheet) -> StyledNode<'a> {
@@ -188,7 +207,12 @@ mod tests {
 
         assert_eq!(
             values.get("color").unwrap(),
-            &Value::ColorValue(css::Color { r: 0, g: 255, b: 0, a: 255 })
+            &Value::ColorValue(css::Color {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 255
+            })
         );
     }
 

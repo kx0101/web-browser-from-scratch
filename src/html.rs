@@ -161,7 +161,8 @@ mod tests {
 
     #[test]
     fn parse_element_with_attributes() {
-        let node = HtmlParser::parse(r#"<div id="main" class="container"></div>"#.to_string()).unwrap();
+        let node =
+            HtmlParser::parse(r#"<div id="main" class="container"></div>"#.to_string()).unwrap();
         match &node.node_type {
             NodeType::Element(data) => {
                 assert_eq!(data.tag_name, "div");
