@@ -11,15 +11,15 @@ pub struct Dimensions {
 }
 
 impl Dimensions {
-    fn padding_box(&self) -> Rect {
+    pub fn padding_box(&self) -> Rect {
         self.content.expanded_by(self.padding)
     }
 
-    fn border_box(&self) -> Rect {
+    pub fn border_box(&self) -> Rect {
         self.padding_box().expanded_by(self.border)
     }
 
-    fn margin_box(&self) -> Rect {
+    pub fn margin_box(&self) -> Rect {
         self.border_box().expanded_by(self.margin)
     }
 }

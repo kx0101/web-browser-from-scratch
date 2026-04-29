@@ -10,6 +10,8 @@ impl std::fmt::Display for ParserError {
     }
 }
 
+impl std::error::Error for ParserError {}
+
 pub type ParserResult<T> = Result<T, ParserError>;
 
 pub struct Parser {
